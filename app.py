@@ -17,7 +17,10 @@ from sklearn.metrics import (
     r2_score
 )
 
-# Logger
+# --------------------------
+# LOGGER
+# --------------------------
+
 def log(message):
     timestamp=datetime.now().strftime(
         "%Y-%m-%d %H:%M:%S"
@@ -28,12 +31,18 @@ def log(message):
     )
 
 
-# Session State
+# --------------------------
+# SESSION STATE
+# --------------------------
+
 if "df_clean" not in st.session_state:
     st.session_state.df_clean=None
 
 
-# Folder setup
+# --------------------------
+# FOLDER SETUP
+# --------------------------
+
 BASE_DIR=os.path.dirname(
     os.path.abspath(__file__)
 )
@@ -61,7 +70,10 @@ os.makedirs(
 )
 
 
-# Page config
+# --------------------------
+# PAGE CONFIG
+# --------------------------
+
 st.set_page_config(
     page_title="End-to-End SVM Regressor",
     layout="wide"
@@ -71,8 +83,15 @@ st.title(
     "🏠 End-to-End SVM Regressor"
 )
 
+log(
+    "Application Started"
+)
 
-# Sidebar
+
+# --------------------------
+# SIDEBAR SETTINGS
+# --------------------------
+
 st.sidebar.header(
     "SVR Settings"
 )
@@ -83,23 +102,30 @@ kernel=st.sidebar.selectbox(
 )
 
 C=st.sidebar.slider(
-    "C",
+    "Regularization (C)",
     0.1,
     10.0,
     1.0
 )
 
-# -------------------
-# DATA INGESTION
-# -------------------
+gamma=st.sidebar.selectbox(
+    "Gamma",
+    ["scale","auto"]
+)
+
+
+# --------------------------
+# STEP 1 DATA INGESTION
+# --------------------------
 
 st.header(
-    "Step 1: Data Ingestion"
+    "Step 1 : Data Ingestion"
 )
 
 option=st.radio(
-    "Choose Dataset",
-    ["California Dataset","Upload CSV"]
+    "Choose Data Source",
+    ["California Dataset",
+     "Upload CSV"]
 )
 
 df=None
@@ -116,35 +142,44 @@ if option=="California Dataset":
     df["Price"]=housing.target
 
     st.success(
+        "California Dataset Loaded"
+    )
+
+    log(
         "California dataset loaded"
     )
 
+
 elif option=="Upload CSV":
 
-    file=st.file_uploader(
+    uploaded=st.file_uploader(
         "Upload CSV",
-        type=['csv']
+        type=["csv"]
     )
 
-    if file:
+    if uploaded:
 
         df=pd.read_csv(
-            file
+            uploaded
         )
 
         st.success(
-            "File uploaded"
+            "CSV Uploaded Successfully"
+        )
+
+        log(
+            "CSV Uploaded"
         )
 
 
-# -------------------
-# EDA
-# -------------------
+# --------------------------
+# STEP 2 EDA
+# --------------------------
 
 if df is not None:
 
     st.header(
-        "Step 2: EDA"
+        "Step 2 : Exploratory Data Analysis"
     )
 
     st.dataframe(
@@ -157,14 +192,29 @@ if df is not None:
     )
 
     st.write(
-        "Missing Values:"
+        "Missing Values"
     )
 
     st.write(
         df.isnull().sum()
     )
 
-    fig,ax=plt.subplots()
+    st.write(
+        "Statistical Summary"
+    )
+
+    st.write(
+        df.describe()
+    )
+
+
+    st.subheader(
+        "Correlation Heatmap"
+    )
+
+    fig,ax=plt.subplots(
+        figsize=(12,8)
+    )
 
     sns.heatmap(
         df.corr(
@@ -175,22 +225,27 @@ if df is not None:
         ax=ax
     )
 
-    st.pyplot(fig)
+    st.pyplot(
+        fig
+    )
 
 
-# -------------------
-# CLEANING
-# -------------------
+
+# --------------------------
+# STEP 3 CLEANING
+# --------------------------
 
 if df is not None:
 
     st.header(
-        "Step 3: Data Cleaning"
+        "Step 3 : Data Cleaning"
     )
 
     strategy=st.selectbox(
         "Missing value strategy",
-        ["Mean","Median","Drop"]
+        ["Mean",
+         "Median",
+         "Drop"]
     )
 
     df_clean=df.copy()
@@ -207,26 +262,31 @@ if df is not None:
 
             if strategy=="Mean":
 
-                df_clean[col]=df_clean[col].fillna(
-                    df_clean[col].mean()
+                df_clean[col]=(
+                    df_clean[col].fillna(
+                        df_clean[col].mean()
+                    )
                 )
 
             else:
 
-                df_clean[col]=df_clean[col].fillna(
-                    df_clean[col].median()
+                df_clean[col]=(
+                    df_clean[col].fillna(
+                        df_clean[col].median()
+                    )
                 )
 
     st.session_state.df_clean=df_clean
 
     st.success(
-        "Cleaning completed"
+        "Data Cleaning Completed"
     )
 
 
-# -------------------
-# SAVE CLEANED DATA
-# -------------------
+
+# --------------------------
+# STEP 4 SAVE DATA
+# --------------------------
 
 if st.button(
     "Save Cleaned Dataset"
@@ -235,12 +295,12 @@ if st.button(
     if st.session_state.df_clean is None:
 
         st.error(
-            "No cleaned dataset"
+            "No cleaned data available"
         )
 
     else:
 
-        filename=f"cleaned_{datetime.now().strftime('%Y%m%d%H%M%S')}.csv"
+        filename=f"cleaned_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
 
         path=os.path.join(
             CLEAN_DIR,
@@ -253,17 +313,27 @@ if st.button(
         )
 
         st.success(
-            "Saved Successfully"
+            "Dataset Saved Successfully"
+        )
+
+        st.info(
+            path
+        )
+
+        log(
+            f"Saved:{path}"
         )
 
 
-# -------------------
-# LOAD DATA
-# -------------------
+# --------------------------
+# STEP 5 LOAD DATA
+# --------------------------
 
 st.header(
-    "Step 4: Load Cleaned Data"
+    "Step 5 : Load Cleaned Dataset"
 )
+
+df_model=None
 
 files=os.listdir(
     CLEAN_DIR
@@ -277,140 +347,172 @@ if files:
     )
 
     df_model=pd.read_csv(
+
         os.path.join(
             CLEAN_DIR,
             selected
         )
     )
 
+    st.success(
+        f"Loaded:{selected}"
+    )
+
     st.dataframe(
         df_model.head()
     )
 
+else:
 
-# -------------------
-# TRAIN MODEL
-# -------------------
+    st.warning(
+        "No cleaned datasets found"
+    )
+
+
+
+# --------------------------
+# STEP 6 TRAIN SVR
+# --------------------------
 
 st.header(
-    "Step 5: Train SVR"
+    "Step 6 : Train SVR"
 )
 
-target=st.selectbox(
-    "Select Target",
-    df_model.columns
-)
+if df_model is not None:
 
-X=df_model.drop(
-    columns=[target]
-)
+    target=st.selectbox(
+        "Select Target Column",
+        df_model.columns
+    )
 
-X=X.select_dtypes(
-    include=np.number
-)
+    X=df_model.drop(
+        columns=[target]
+    )
 
-y=df_model[target]
+    X=X.select_dtypes(
+        include=np.number
+    )
 
-scaler=StandardScaler()
-
-X=scaler.fit_transform(
-    X
-)
-
-X_train,X_test,y_train,y_test=train_test_split(
-
-    X,
-    y,
-    test_size=0.2,
-    random_state=42
-)
-
-model=SVR(
-    kernel=kernel,
-    C=C
-)
-
-model.fit(
-    X_train,
-    y_train
-)
-
-y_pred=model.predict(
-    X_test
-)
+    y=df_model[target]
 
 
-# -------------------
+    scaler=StandardScaler()
+
+    X=scaler.fit_transform(
+        X
+    )
+
+
+    X_train,X_test,y_train,y_test=(
+        train_test_split(
+
+            X,
+            y,
+            test_size=0.2,
+            random_state=42
+        )
+    )
+
+
+    model=SVR(
+
+        kernel=kernel,
+        C=C,
+        gamma=gamma
+    )
+
+
+    model.fit(
+        X_train,
+        y_train
+    )
+
+
+    y_pred=model.predict(
+        X_test
+    )
+
+
+# --------------------------
 # METRICS
-# -------------------
+# --------------------------
 
-st.header(
-    "Model Performance"
-)
+    st.header(
+        "Model Performance"
+    )
 
-mse=mean_squared_error(
-    y_test,
-    y_pred
-)
+    mse=mean_squared_error(
+        y_test,
+        y_pred
+    )
 
-rmse=np.sqrt(
-    mse
-)
+    rmse=np.sqrt(
+        mse
+    )
 
-mae=mean_absolute_error(
-    y_test,
-    y_pred
-)
+    mae=mean_absolute_error(
+        y_test,
+        y_pred
+    )
 
-r2=r2_score(
-    y_test,
-    y_pred
-)
-
-c1,c2,c3,c4=st.columns(4)
-
-c1.metric(
-    "MSE",
-    round(mse,3)
-)
-
-c2.metric(
-    "RMSE",
-    round(rmse,3)
-)
-
-c3.metric(
-    "MAE",
-    round(mae,3)
-)
-
-c4.metric(
-    "R²",
-    round(r2,3)
-)
+    r2=r2_score(
+        y_test,
+        y_pred
+    )
 
 
-# Prediction Graph
+    c1,c2,c3,c4=st.columns(4)
 
-st.subheader(
-    "Actual vs Predicted"
-)
+    c1.metric(
+        "MSE",
+        round(mse,3)
+    )
 
-fig,ax=plt.subplots()
+    c2.metric(
+        "RMSE",
+        round(rmse,3)
+    )
 
-ax.scatter(
-    y_test,
-    y_pred
-)
+    c3.metric(
+        "MAE",
+        round(mae,3)
+    )
 
-ax.set_xlabel(
-    "Actual"
-)
+    c4.metric(
+        "R² Score",
+        round(r2,3)
+    )
 
-ax.set_ylabel(
-    "Predicted"
-)
 
-st.pyplot(
-    fig
-)
+# --------------------------
+# ACTUAL VS PREDICTED
+# --------------------------
+
+    st.subheader(
+        "Actual vs Predicted"
+    )
+
+    fig,ax=plt.subplots()
+
+    ax.scatter(
+        y_test,
+        y_pred
+    )
+
+    ax.set_xlabel(
+        "Actual"
+    )
+
+    ax.set_ylabel(
+        "Predicted"
+    )
+
+    st.pyplot(
+        fig
+    )
+
+else:
+
+    st.info(
+        "Please complete previous steps first"
+    )
